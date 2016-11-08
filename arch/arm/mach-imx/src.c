@@ -96,6 +96,17 @@ void imx_enable_cpu(int cpu, bool enable)
 	spin_unlock(&scr_lock);
 }
 
+bool imx_cpu_is_enabled(int cpu)
+{
+	u32 mask, val;
+
+	cpu = cpu_logical_map(cpu);
+	mask = 1 << (BP_SRC_SCR_CORE1_ENABLE + cpu - 1);
+	val = readl_relaxed(src_base + SRC_SCR);
+
+	return (val & mask);
+}
+
 void imx_set_cpu_jump(int cpu, void *jump_addr)
 {
 	cpu = cpu_logical_map(cpu);

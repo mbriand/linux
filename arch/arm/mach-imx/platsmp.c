@@ -10,6 +10,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+#include <linux/arm-smccc.h>
 #include <linux/init.h>
 #include <linux/of_address.h>
 #include <linux/of.h>
@@ -22,6 +23,13 @@
 
 #include "common.h"
 #include "hardware.h"
+
+#define OPTEE_SMC_CALLID_BOOT_SECONDARY       12
+#define OPTEE_SMC_BOOT_SECONDARY  \
+	ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_32, \
+			   ARM_SMCCC_OWNER_TRUSTED_OS, \
+			   OPTEE_SMC_CALLID_BOOT_SECONDARY)
+
 
 u32 g_diag_reg;
 static void __iomem *scu_base;
@@ -48,8 +56,22 @@ void __init imx_scu_map_io(void)
 
 static int imx_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
-	imx_set_cpu_jump(cpu, v7_secondary_startup);
-	imx_enable_cpu(cpu, true);
+#ifdef CONFIG_OPTEE
+	if (imx_cpu_is_enabled(cpu)) {
+		/* CPU is already enabled: we assume it was enabled by an OP-TEE
+		 * kernel running in secure mode.
+		 */
+		struct arm_smccc_res res;
+		arm_smccc_smc(OPTEE_SMC_BOOT_SECONDARY, cpu, 0,
+			      virt_to_phys(secondary_startup), 0, 0, 0, 0,
+			      &res);
+	} else
+#endif
+	{
+		imx_set_cpu_jump(cpu, v7_secondary_startup);
+		imx_enable_cpu(cpu, true);
+	}
+
 	return 0;
 }
 
